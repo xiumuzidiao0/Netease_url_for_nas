@@ -9,8 +9,12 @@
 """
 
 import logging
+import os
+import shutil
 import sys
+import tempfile
 import time
+import threading
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,11 +42,31 @@ class APIConfig:
     host: str = '0.0.0.0'
     port: int = 5000
     debug: bool = False
-    downloads_dir: str = 'downloads'
     max_file_size: int = 500 * 1024 * 1024  # 500MB
     request_timeout: int = 30
     log_level: str = 'INFO'
     cors_origins: str = '*'
+    # 用户设置
+    search_limit: int = 10  # 搜索返回数量
+    filename_format: str = '{artist} - {name}'  # 文件命名格式
+    
+    # 自动清理功能环境变量配置
+    autoremove: bool = True
+    auto_delete_time: int = 60
+    webdl: bool = True
+    downloads_dir: str = 'temp'
+
+    def __post_init__(self):
+        """解析容器环境变量"""
+        self.autoremove = str(os.environ.get('AUTOREMOVE', 'true')).strip().lower() == 'true'
+        try:
+            self.auto_delete_time = int(os.environ.get('AUTO_DELETE_TIME', '60'))
+        except ValueError:
+            self.auto_delete_time = 60
+        self.webdl = str(os.environ.get('WEBDL', 'true')).strip().lower() == 'true'
+        
+        # 根据清理设定分配存储目录
+        self.downloads_dir = 'temp' if self.autoremove else 'downloads'
 
 
 class APIResponse:
@@ -81,13 +105,56 @@ class MusicAPIService:
         self.logger = self._setup_logger()
         self.cookie_manager = CookieManager()
         self.netease_api = NeteaseAPI()
-        self.downloader = MusicDownloader()
+        
+        # 将明确的下载目录传给底层工具
+        self.downloader = MusicDownloader(
+            download_dir=config.downloads_dir,
+            filename_format=config.filename_format
+        )
         
         # 创建下载目录
         self.downloads_path = Path(config.downloads_dir)
         self.downloads_path.mkdir(exist_ok=True)
         
-        self.logger.info(f"音乐API服务初始化完成，下载目录: {self.downloads_path.absolute()}")
+        self.logger.info(f"音乐API服务初始化完成，工作目录: {self.downloads_path.absolute()}")
+        self.logger.info(f"环境变量挂载: AUTOREMOVE={self.config.autoremove}, AUTO_DELETE_TIME={self.config.auto_delete_time}m, WEBDL={self.config.webdl}")
+        
+        # 激活自动清理后台守护线程
+        if self.config.autoremove:
+            self.logger.info(f"启用自动清理机制，清空间隔: {self.config.auto_delete_time} 分钟，监听目录: {self.downloads_path}")
+            cleanup_thread = threading.Thread(target=self._auto_cleanup_task, name="AutoCleanupDaemon", daemon=True)
+            cleanup_thread.start()
+            
+    def _auto_cleanup_task(self):
+        """后台定点清理文件夹任务"""
+        while True:
+            # 缩短轮询周期至 30 秒，以防被 time.sleep 的长效阻塞锁死导致无法响应界面的实时配置
+            time.sleep(30)
+            
+            # 如果中途配置被外部关停，则直接略过本次清理循环探测
+            if not self.config.autoremove:
+                continue
+                
+            try:
+                current_time = time.time()
+                # 存活时间阈值（秒）
+                survival_seconds = self.config.auto_delete_time * 60
+                deleted_count = 0
+                
+                for target_path in self.downloads_path.iterdir():
+                    # 依据文件/文件夹的最后修改时间计算存活期，只有超出生命周期的才会被超度
+                    if current_time - target_path.stat().st_mtime > survival_seconds:
+                        if target_path.is_file() or target_path.is_symlink():
+                            target_path.unlink()
+                            deleted_count += 1
+                        elif target_path.is_dir():
+                            shutil.rmtree(target_path)
+                            deleted_count += 1
+                            
+                if deleted_count > 0:
+                    self.logger.info(f"====== 周期性空间回收任务：依据存活期成功清理了 {deleted_count} 个过期项目 ======")
+            except Exception as e:
+                self.logger.error(f"周期性自动清理文件夹时发生错误: {e}")
     
     def _setup_logger(self) -> logging.Logger:
         """设置日志记录器"""
@@ -391,7 +458,7 @@ def search_music_api():
         # 获取请求参数
         data = api_service._safe_get_request_data()
         keyword = data.get('keyword') or data.get('keywords') or data.get('q')
-        limit = int(data.get('limit', 30))
+        limit = int(data.get('limit', api_service.config.search_limit))
         offset = int(data.get('offset', 0))
         search_type = data.get('type', '1')  # 1-歌曲, 10-专辑, 100-歌手, 1000-歌单
         
@@ -538,7 +605,12 @@ def download_music_api():
         }
         
         # 生成安全文件名
-        safe_name = f"{music_info['name']} [{quality}]"
+        # 根据配置生成文件名
+        filename_fmt = api_service.config.filename_format
+        if '{artist}' in filename_fmt:
+            safe_name = filename_fmt.format(artist=music_info['artist_string'], name=music_info['name'])
+        else:
+            safe_name = filename_fmt.format(name=music_info['name'], artist=music_info['artist_string'])
         safe_name = ''.join(c for c in safe_name if c not in r'<>:"/\|?*')
         filename = f"{safe_name}.{music_info['file_type']}"
         
@@ -580,9 +652,13 @@ def download_music_api():
                 'filename': filename,
                 'duration': music_info['duration']
             }
-            return APIResponse.success(response_data, "下载完成")
+            return APIResponse.success(response_data, "下载完成已经落盘")
         else:
-            # 返回文件下载
+            # 如果配置关闭了Web前端侧边流式推送回调，短路在此阶段，直接返回成功字符串
+            if not api_service.config.webdl:
+                return APIResponse.success(f"已成功下载至服务器本地: {filename}")
+                
+            # 返回文件下载回终端
             if not file_path.exists():
                 return APIResponse.error("文件不存在", 404)
             
@@ -604,6 +680,286 @@ def download_music_api():
         api_service.logger.error(f"下载音乐异常: {e}\n{traceback.format_exc()}")
         return APIResponse.error(f"下载异常: {str(e)}", 500)
 
+
+
+# 全局下载进度字典 { task_id: { 'status': 'working', 'current': 0, 'total': 0, 'message': '正在服务' } }
+download_progress_tasks = {}
+
+@app.route('/batch_download', methods=['POST'])
+def batch_download_api():
+    """批量下载音乐API"""
+    try:
+        data = api_service._safe_get_request_data()
+        music_ids_str = data.get('ids', '')
+        quality = data.get('quality', 'lossless')
+        return_format = data.get('format', 'json')  # json 或 zip
+        name = data.get('name', 'music')  # ZIP文件名
+
+        # 解析ID列表
+        id_list = [id.strip() for id in music_ids_str.split(',') if id.strip()]
+        
+        task_id = data.get('task_id')
+        if task_id:
+            download_progress_tasks[task_id] = {
+                'status': 'working',
+                'current': 0,
+                'total': len(id_list),
+                'message': '准备服务端下载环境...'
+            }
+
+        if not id_list:
+            if task_id: download_progress_tasks[task_id] = {'status': 'error', 'message': '未提供音乐ID列表'}
+            return APIResponse.error("未提供音乐ID列表")
+
+        # 验证音质参数
+        valid_qualities = ['standard', 'exhigh', 'lossless', 'hires', 'sky', 'jyeffect', 'jymaster']
+        if quality not in valid_qualities:
+            return APIResponse.error(f"无效的音质参数")
+
+        # 获取cookies
+        cookies = api_service._get_cookies()
+
+        # 逐个下载歌曲
+        success_count = 0
+        failed_count = 0
+        failed_ids = []
+        downloaded_files = []
+
+        for music_id in id_list:
+            if task_id and task_id in download_progress_tasks:
+                download_progress_tasks[task_id]['message'] = f'正在服务端获取音乐档案... ({success_count+1}/{len(id_list)})'
+            
+            try:
+                # 获取音乐信息
+                song_info = name_v1(music_id)
+                if not song_info or 'songs' not in song_info or not song_info['songs']:
+                    failed_count += 1
+                    failed_ids.append(music_id)
+                    if task_id: download_progress_tasks[task_id]['current'] = success_count + failed_count
+                    continue
+
+                # 获取下载链接
+                url_info = url_v1(music_id, quality, cookies)
+                if not url_info or 'data' not in url_info or not url_info['data'] or not url_info['data'][0].get('url'):
+                    failed_count += 1
+                    failed_ids.append(music_id)
+                    if task_id: download_progress_tasks[task_id]['current'] = success_count + failed_count
+                    continue
+
+                # 使用下载器下载
+                if task_id: download_progress_tasks[task_id]['message'] = f'正在同步文件至云端... ({success_count+1}/{len(id_list)})'
+                download_result = api_service.downloader.download_music_file(music_id, quality)
+                if download_result.success:
+                    success_count += 1
+                    downloaded_files.append(download_result.file_path)
+                    api_service.logger.info(f"批量下载成功: {music_id}")
+                else:
+                    failed_count += 1
+                    failed_ids.append(music_id)
+                
+                if task_id: download_progress_tasks[task_id]['current'] = success_count + failed_count
+
+            except Exception as e:
+                api_service.logger.error(f"下载音乐ID {music_id} 失败: {e}")
+                failed_count += 1
+                failed_ids.append(music_id)
+                if task_id: download_progress_tasks[task_id]['current'] = success_count + failed_count
+
+        # 如果没有成功下载的文件，返回错误
+        if not downloaded_files:
+            if task_id: download_progress_tasks[task_id] = {'status': 'error', 'message': '没有成功下载的歌曲'}
+            return APIResponse.error("没有成功下载的歌曲", 400)
+
+        # 如果请求ZIP格式但用户服务端禁用了 WEBDL (不要向端发送压缩流)
+        if return_format == 'zip' and not api_service.config.webdl:
+            if task_id: download_progress_tasks[task_id] = {'status': 'done', 'message': f'成功下载至全盘，共 {success_count} 首'}
+            return APIResponse.success(
+                data={'downloaded_files': downloaded_files, 'success_count': success_count}, 
+                message=f"不启动 Web 回传。文件均已存储在服务器本地，成功了 {success_count} 首"
+            )
+
+        # 如果请求ZIP格式且用户服务端打开 WEBDL 时，打包成ZIP文件回传浏览器流
+        if return_format == 'zip' and downloaded_files:
+            try:
+                if task_id: download_progress_tasks[task_id]['message'] = '正在打包合并为 ZIP 文件...'
+                # 创建临时目录用于打包
+                temp_dir = tempfile.mkdtemp()
+                # 创建子目录，用于存放音乐文件，避免ZIP文件被包含
+                music_dir = os.path.join(temp_dir, 'music')
+                os.makedirs(music_dir, exist_ok=True)
+                zip_base = os.path.join(temp_dir, 'batch_download')
+
+                # 用于跟踪已使用的文件名，避免冲突
+                used_names = set()
+                file_counter = 0
+
+                # 复制所有下载的文件到子目录
+                for file_path in downloaded_files:
+                    if os.path.exists(file_path):
+                        original_name = os.path.basename(file_path)
+                        # 确保文件名唯一
+                        name_without_ext = os.path.splitext(original_name)[0]
+                        ext = os.path.splitext(original_name)[1]
+                        unique_name = original_name
+
+                        while unique_name in used_names:
+                            file_counter += 1
+                            unique_name = f"{name_without_ext}_{file_counter}{ext}"
+
+                        used_names.add(unique_name)
+                        shutil.copy2(file_path, os.path.join(music_dir, unique_name))
+
+                # 只打包music子目录
+                zip_path = shutil.make_archive(zip_base, 'zip', temp_dir, 'music')
+
+                # 清理文件名中的非法字符
+                safe_name = ''.join(c for c in name if c not in r'<>:"/\\|?*')
+                if not safe_name:
+                    safe_name = 'music'
+                zip_filename = f"{safe_name}.zip"
+
+                # 发送ZIP文件
+                response = send_file(
+                    zip_path,
+                    as_attachment=True,
+                    download_name=zip_filename,
+                    mimetype='application/zip'
+                )
+
+                # 清理临时目录
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+
+                return response
+
+            except Exception as e:
+                api_service.logger.error(f"创建ZIP文件失败: {e}")
+                # 如果ZIP打包失败，回退到JSON格式
+
+        # 默认返回JSON格式
+        response_data = {
+            'total': len(id_list),
+            'success': success_count,
+            'failed': failed_count,
+            'failed_ids': failed_ids,
+            'downloaded_files': downloaded_files
+        }
+
+        return APIResponse.success(response_data, f"批量下载完成，成功 {success_count} 首")
+
+    except Exception as e:
+        api_service.logger.error(f"批量下载异常: {e}\n{traceback.format_exc()}")
+        return APIResponse.error(f"批量下载异常: {str(e)}", 500)
+
+@app.route('/batch_download/progress', methods=['GET'])
+def batch_download_progress():
+    """获取批量下载进度"""
+    task_id = request.args.get('task_id')
+    if not task_id or task_id not in download_progress_tasks:
+        return jsonify({'status': 'error', 'message': '任务不存在或已过期'})
+    return jsonify(download_progress_tasks[task_id])
+
+# 设置API
+@app.route('/settings', methods=['GET', 'POST'])
+@app.route('/api/settings', methods=['GET', 'POST'])
+def settings_api():
+    """设置API - 获取或修改设置"""
+    
+    def _update_env_file(key: str, value: str):
+        """局部方法：修改并覆盖 .env 文件中的键值对"""
+        env_path = '.env'
+        lines = []
+        key_found = False
+        
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f'{key}='):
+                lines[i] = f'{key}={value}\n'
+                key_found = True
+                break
+                
+        if not key_found:
+            lines.append(f'{key}={value}\n')
+            
+        with open(env_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+    try:
+        if request.method == 'GET':
+            # 获取当前设置
+            settings = {
+                'search_limit': api_service.config.search_limit,
+                'filename_format': api_service.config.filename_format,
+                'autoremove': api_service.config.autoremove,
+                'auto_delete_time': api_service.config.auto_delete_time,
+                'webdl': api_service.config.webdl
+            }
+            return APIResponse.success(settings, "获取设置成功")
+        else:
+            # 更新设置
+            data = api_service._safe_get_request_data()
+            
+            if 'search_limit' in data:
+                try:
+                    limit = int(data['search_limit'])
+                    if 1 <= limit <= 100:
+                        api_service.config.search_limit = limit
+                    else:
+                        return APIResponse.error("搜索数量应在1-100之间")
+                except ValueError:
+                    return APIResponse.error("搜索数量应为数字")
+            
+            if 'filename_format' in data:
+                fmt = data['filename_format']
+                if fmt in ['{artist} - {name}', '{name} - {artist}']:
+                    api_service.config.filename_format = fmt
+                    api_service.downloader.filename_format = fmt
+                else:
+                    return APIResponse.error("无效的命名格式")
+            
+            # 环境配置 - 自动清理与WEB下载控制
+            if 'autoremove' in data:
+                new_autoremove = bool(data['autoremove'])
+                api_service.config.autoremove = new_autoremove
+                _update_env_file('AUTOREMOVE', 'true' if new_autoremove else 'false')
+                
+                # 动态分配底层存储路径
+                api_service.config.downloads_dir = 'temp' if new_autoremove else 'downloads'
+                api_service.downloads_path = Path(api_service.config.downloads_dir)
+                api_service.downloads_path.mkdir(exist_ok=True)
+                api_service.downloader.download_dir = api_service.downloads_path
+                
+                if new_autoremove and not any(t.name == "AutoCleanupDaemon" for t in threading.enumerate()):
+                    cleanup_thread = threading.Thread(target=api_service._auto_cleanup_task, name="AutoCleanupDaemon", daemon=True)
+                    cleanup_thread.start()
+                    
+            if 'auto_delete_time' in data:
+                try:
+                    at_time = int(data['auto_delete_time'])
+                    if at_time > 0:
+                        api_service.config.auto_delete_time = at_time
+                        _update_env_file('AUTO_DELETE_TIME', str(at_time))
+                except ValueError:
+                    return APIResponse.error("清理间隔应为有效数字")
+                    
+            if 'webdl' in data:
+                new_webdl = bool(data['webdl'])
+                api_service.config.webdl = new_webdl
+                _update_env_file('WEBDL', 'true' if new_webdl else 'false')
+            
+            return APIResponse.success({
+                'search_limit': api_service.config.search_limit,
+                'filename_format': api_service.config.filename_format,
+                'autoremove': api_service.config.autoremove,
+                'auto_delete_time': api_service.config.auto_delete_time,
+                'webdl': api_service.config.webdl
+            }, "设置更新成功")
+    except Exception as e:
+        api_service.logger.error(f"设置API异常: {e}\n{traceback.format_exc()}")
+        return APIResponse.error(f"设置失败: {str(e)}", 500)
 
 @app.route('/api/info', methods=['GET'])
 def api_info():
@@ -656,6 +1012,7 @@ def start_api_server():
         print(f"  ├─ POST /playlist      - 获取歌单详情")
         print(f"  ├─ POST /album         - 获取专辑详情")
         print(f"  ├─ POST /download      - 下载音乐")
+        print(f"  ├─ GET/POST /settings  - 获取/修改设置")
         print(f"  └─ GET  /api/info      - API信息")
         print("\n🎵 支持的音质:")
         print(f"  standard, exhigh, lossless, hires, sky, jyeffect, jymaster")

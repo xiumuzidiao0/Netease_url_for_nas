@@ -22,7 +22,7 @@ from enum import Enum
 import requests
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TRCK, APIC
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TRCK, APIC, USLT
 from mutagen.mp4 import MP4
 
 from music_api import NeteaseAPI, APIException
@@ -85,22 +85,24 @@ class DownloadException(Exception):
 class MusicDownloader:
     """音乐下载器主类"""
     
-    def __init__(self, download_dir: str = "downloads", max_concurrent: int = 3):
+    def __init__(self, download_dir: str = "downloads", max_concurrent: int = 3, filename_format: str = "{artist} - {name}"):
         """
         初始化音乐下载器
-        
+
         Args:
             download_dir: 下载目录
             max_concurrent: 最大并发下载数
+            filename_format: 文件命名格式，支持 {artist} 和 {name} 占位符
         """
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(exist_ok=True)
         self.max_concurrent = max_concurrent
-        
+        self.filename_format = filename_format
+
         # 初始化依赖
         self.cookie_manager = CookieManager()
         self.api = NeteaseAPI()
-        
+
         # 支持的文件格式
         self.supported_formats = {
             'mp3': AudioFormat.MP3,
@@ -238,15 +240,19 @@ class MusicDownloader:
         try:
             # 获取音乐信息
             music_info = self.get_music_info(music_id, quality)
-            
+
             # 生成文件名
-            filename = f"{music_info.artists} - {music_info.name}"
+            filename_fmt = self.filename_format
+            if '{artist}' in filename_fmt:
+                filename = filename_fmt.format(artist=music_info.artists, name=music_info.name)
+            else:
+                filename = filename_fmt.format(name=music_info.name, artist=music_info.artists)
             safe_filename = self._sanitize_filename(filename)
-            
+
             # 确定文件扩展名
             file_ext = self._determine_file_extension(music_info.download_url)
             file_path = self.download_dir / f"{safe_filename}{file_ext}"
-            
+
             # 检查文件是否已存在
             if file_path.exists():
                 return DownloadResult(
@@ -255,7 +261,7 @@ class MusicDownloader:
                     file_size=file_path.stat().st_size,
                     music_info=music_info
                 )
-            
+
             # 下载文件
             response = requests.get(music_info.download_url, stream=True, timeout=30)
             response.raise_for_status()
@@ -304,7 +310,11 @@ class MusicDownloader:
             music_info = self.get_music_info(music_id, quality)
             
             # 生成文件名
-            filename = f"{music_info.artists} - {music_info.name}"
+            filename_fmt = self.filename_format
+            if '{artist}' in filename_fmt:
+                filename = filename_fmt.format(artist=music_info.artists, name=music_info.name)
+            else:
+                filename = filename_fmt.format(name=music_info.name, artist=music_info.artists)
             safe_filename = self._sanitize_filename(filename)
             
             # 确定文件扩展名
@@ -417,6 +427,49 @@ class MusicDownloader:
         
         return processed_results
     
+    def _merge_bilingual_lyrics(self, lyric: str, tlyric: str) -> str:
+        """合并双语歌词并按照时间轴对齐"""
+        if not tlyric:
+            return lyric
+        if not lyric:
+            return tlyric
+            
+        # 匹配标准网易云歌词格式：[mm:ss.xx] 歌词正文
+        time_pattern = re.compile(r'\[(\d{2}:\d{2}\.\d{2,3})\]')
+        
+        # 解析两种歌词
+        def parse_lyric(lrc_text):
+            lines = {}
+            for line in lrc_text.splitlines():
+                if not line.strip():
+                    continue
+                times = time_pattern.findall(line)
+                text = time_pattern.sub('', line).strip()
+                for t in times:
+                    lines[t] = text
+            return lines
+
+        lyric_dict = parse_lyric(lyric)
+        tlyric_dict = parse_lyric(tlyric)
+        
+        # 取到所有的原文时间点，按照原本先后顺序（字典是有序的，但为了安全排序一下比较好，或沿用原文结构更佳）
+        # 网易的歌词原文结构天然有序，我们可以直接遍历原文做主体，如果在翻译里找到同时刻的就拼到后面。
+        merged_lines = []
+        for line in lyric.splitlines():
+            if not line.strip():
+                continue
+            merged_lines.append(line)
+            # 找到对应行的时间节点去挂靠副词
+            times = time_pattern.findall(line)
+            if times:
+                # 一般一行只会匹配到一个有效时间点，取第一个寻找对应翻译
+                main_time = times[0]
+                if main_time in tlyric_dict and tlyric_dict[main_time]:
+                    merged_lines.append(f"[{main_time}] {tlyric_dict[main_time]}")
+                    
+        # 可能存在一些仅有的元数据区或其他没匹配上时间轴的头尾保留
+        return '\n'.join(merged_lines)
+
     def _write_music_tags(self, file_path: Path, music_info: MusicInfo) -> None:
         """写入音乐标签信息
         
@@ -449,7 +502,15 @@ class MusicDownloader:
             
             if music_info.track_number > 0:
                 audio.tags.add(TRCK(encoding=3, text=str(music_info.track_number)))
-            
+
+            # 添加歌词
+            if music_info.lyric or music_info.tlyric:
+                try:
+                    merged_lyric = self._merge_bilingual_lyrics(music_info.lyric, music_info.tlyric)
+                    audio.tags.add(USLT(encoding=3, lang='eng', desc='Lyrics', text=merged_lyric))
+                except:
+                    pass
+
             # 下载并添加封面
             if music_info.pic_url:
                 try:
@@ -464,7 +525,7 @@ class MusicDownloader:
                     ))
                 except:
                     pass  # 封面下载失败不影响主流程
-            
+
             audio.save()
         except Exception as e:
             print(f"写入MP3标签失败: {e}")
@@ -480,13 +541,18 @@ class MusicDownloader:
             
             if music_info.track_number > 0:
                 audio['TRACKNUMBER'] = str(music_info.track_number)
-            
+
+            # 添加歌词
+            if music_info.lyric or music_info.tlyric:
+                merged_lyric = self._merge_bilingual_lyrics(music_info.lyric, music_info.tlyric)
+                audio['LYRICS'] = merged_lyric
+
             # 下载并添加封面
             if music_info.pic_url:
                 try:
                     pic_response = requests.get(music_info.pic_url, timeout=10)
                     pic_response.raise_for_status()
-                    
+
                     from mutagen.flac import Picture
                     picture = Picture()
                     picture.type = 3  # Cover (front)
@@ -496,7 +562,7 @@ class MusicDownloader:
                     audio.add_picture(picture)
                 except:
                     pass  # 封面下载失败不影响主流程
-            
+
             audio.save()
         except Exception as e:
             print(f"写入FLAC标签失败: {e}")
@@ -512,7 +578,12 @@ class MusicDownloader:
             
             if music_info.track_number > 0:
                 audio['trkn'] = [(music_info.track_number, 0)]
-            
+
+            # 添加歌词
+            if music_info.lyric or music_info.tlyric:
+                merged_lyric = self._merge_bilingual_lyrics(music_info.lyric, music_info.tlyric)
+                audio['\xa9lyr'] = merged_lyric
+
             # 下载并添加封面
             if music_info.pic_url:
                 try:
@@ -521,7 +592,7 @@ class MusicDownloader:
                     audio['covr'] = [pic_response.content]
                 except:
                     pass  # 封面下载失败不影响主流程
-            
+
             audio.save()
         except Exception as e:
             print(f"写入M4A标签失败: {e}")
@@ -539,7 +610,11 @@ class MusicDownloader:
         try:
             music_info = self.get_music_info(music_id, quality)
             
-            filename = f"{music_info.artists} - {music_info.name}"
+            filename_fmt = self.filename_format
+            if '{artist}' in filename_fmt:
+                filename = filename_fmt.format(artist=music_info.artists, name=music_info.name)
+            else:
+                filename = filename_fmt.format(name=music_info.name, artist=music_info.artists)
             safe_filename = self._sanitize_filename(filename)
             file_ext = self._determine_file_extension(music_info.download_url)
             file_path = self.download_dir / f"{safe_filename}{file_ext}"
