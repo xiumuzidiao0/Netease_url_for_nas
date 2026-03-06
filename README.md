@@ -1,17 +1,13 @@
 # 网易云音乐无损解析
 
 <div align="center">
-
-![GitHub stars](https://img.shields.io/github/stars/Suxiaoqinx/Netease_url?style=flat-square)
-![GitHub forks](https://img.shields.io/github/forks/Suxiaoqinx/Netease_url?style=flat-square)
-![GitHub issues](https://img.shields.io/github/issues/Suxiaoqinx/Netease_url?style=flat-square)
-![GitHub license](https://img.shields.io/github/license/Suxiaoqinx/Netease_url?style=flat-square)
+![GitHub license](https://img.shields.io/https://github.com/xiumuzidiao0/Netease_url_for_nas?style=flat-square)
 
 **功能强大的网易云音乐解析工具**
 
 支持歌曲搜索 | 单曲解析 | 歌单解析 | 专辑解析 | 音乐下载
 
-[在线体验](https://wyapi.toubiec.cn) • [使用文档](./使用文档.md) • [问题反馈](https://github.com/Suxiaoqinx/Netease_url/issues)
+[使用文档](./使用文档.md)
 
 </div>
 
@@ -92,8 +88,8 @@ python main.py
 docker-compose up -d
 
 # 或使用Docker
-docker build -t netease-music-api .
-docker run -d -p 5000:5000 netease-music-api
+docker build -t netease_url_for_nas .
+docker run -d -p 5000:5000 netease_url_for_nas
 ```
 
 ---
@@ -284,13 +280,6 @@ Content-Type: application/json
    docker-compose up -d --build
    ```
 
-> 💡 **镜像特性提示**：全新的 `.dockerignore` 文件已严格屏蔽了非生产环境包（如本地 `.venv` 等），这不仅能杜绝“脂肪镜像（超过 200MB 的历史包袱）”，更能把最终上线的运行态锁定在 160MB 左右的黄金平衡点。
-
----
-
-## 在线演示
-
-[在线解析](https://wyapi.toubiec.cn/)
 
 ---
 
@@ -303,16 +292,10 @@ Content-Type: application/json
 
 ## 致谢
 
-- [Ravizhan](https://github.com/ravizhan)
+- [Ravizhan](https://github.com/Suxiaoqinx/Netease_url)
 
 ---
 
-## 反馈与交流
-
-- 在 Github [Issues](https://github.com/Suxiaoqinx/Netease_url/issues) 提交反馈
-- 或访问 [我的博客](https://www.toubiec.cn)
-
----
 
 欢迎 Star、Fork 和 PR！
 
