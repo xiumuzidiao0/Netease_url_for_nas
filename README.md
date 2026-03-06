@@ -1,7 +1,5 @@
 # 网易云音乐无损解析
 
-<div align="center">
-![GitHub license](https://img.shields.io/https://github.com/xiumuzidiao0/Netease_url_for_nas?style=flat-square)
 
 **功能强大的网易云音乐解析工具**
 
@@ -298,6 +296,7 @@ Content-Type: application/json
 
 
 欢迎 Star、Fork 和 PR！
+
 
 
 
