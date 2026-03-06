@@ -2164,3 +2164,16 @@ music_api.APIException: 获取歌单详情失败: 请求参数错误
 2026-03-06 17:15:04,405 - music_api - INFO - before_request:282 - POST /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
 2026-03-06 17:15:04,408 - music_api - INFO - after_request:297 - 响应状态: 200
 2026-03-06 17:15:32,974 - music_api - INFO - _auto_cleanup_task:155 - ====== 周期性空间回收任务：依据存活期成功清理了 2 个过期项目 ======
+2026-03-06 17:36:21,695 - music_api - INFO - __init__:119 - 音乐API服务初始化完成，工作目录: /home/xmzd/vscode/Netease_url/temp
+2026-03-06 17:36:21,695 - music_api - INFO - __init__:120 - 环境变量挂载: AUTOREMOVE=True, AUTO_DELETE_TIME=60m, WEBDL=False
+2026-03-06 17:36:21,695 - music_api - INFO - __init__:124 - 启用自动清理机制，清空间隔: 60 分钟，监听目录: temp
+2026-03-06 17:36:49,015 - music_api - INFO - before_request:282 - GET / - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:49,024 - music_api - INFO - after_request:297 - 响应状态: 200
+2026-03-06 17:36:49,283 - music_api - INFO - before_request:282 - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:49,284 - music_api - INFO - after_request:297 - 响应状态: 200
+2026-03-06 17:36:58,718 - music_api - INFO - before_request:282 - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:58,719 - music_api - INFO - after_request:297 - 响应状态: 200
+2026-03-06 17:37:01,707 - music_api - INFO - before_request:282 - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:37:01,707 - music_api - INFO - after_request:297 - 响应状态: 200
+2026-03-06 17:37:05,537 - music_api - INFO - before_request:282 - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:37:05,537 - music_api - INFO - after_request:297 - 响应状态: 200

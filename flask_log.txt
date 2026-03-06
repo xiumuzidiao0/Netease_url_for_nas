@@ -1,6 +1,6 @@
-2026-03-06 17:14:32,965 - music_api - INFO - 音乐API服务初始化完成，工作目录: /home/xmzd/vscode/Netease_url/temp
-2026-03-06 17:14:32,965 - music_api - INFO - 环境变量挂载: AUTOREMOVE=True, AUTO_DELETE_TIME=60m, WEBDL=False
-2026-03-06 17:14:32,965 - music_api - INFO - 启用自动清理机制，清空间隔: 60 分钟，监听目录: temp
+2026-03-06 17:36:21,695 - music_api - INFO - 音乐API服务初始化完成，工作目录: /home/xmzd/vscode/Netease_url/temp
+2026-03-06 17:36:21,695 - music_api - INFO - 环境变量挂载: AUTOREMOVE=True, AUTO_DELETE_TIME=60m, WEBDL=False
+2026-03-06 17:36:21,695 - music_api - INFO - 启用自动清理机制，清空间隔: 60 分钟，监听目录: temp
  * Tip: There are .env or .flaskenv files present. Do "pip install python-dotenv" to use them.
 
 ============================================================
@@ -23,7 +23,7 @@
 🎵 支持的音质:
   standard, exhigh, lossless, hires, sky, jyeffect, jymaster
 ============================================================
-⏰ 启动时间: 2026-03-06 17:14:32
+⏰ 启动时间: 2026-03-06 17:36:21
 🌟 服务已就绪，等待请求...
 
  * Serving Flask app 'main'
@@ -33,16 +33,18 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:5000
  * Running on http://192.168.244.128:5000
 Press CTRL+C to quit
-2026-03-06 17:14:56,727 - music_api - INFO - GET / - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
-2026-03-06 17:14:56,737 - music_api - INFO - 响应状态: 200
-192.168.244.1 - - [06/Mar/2026 17:14:56] "GET / HTTP/1.1" 200 -
-2026-03-06 17:14:57,078 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
-2026-03-06 17:14:57,079 - music_api - INFO - 响应状态: 200
-192.168.244.1 - - [06/Mar/2026 17:14:57] "GET /settings HTTP/1.1" 200 -
-2026-03-06 17:14:59,484 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
-2026-03-06 17:14:59,484 - music_api - INFO - 响应状态: 200
-192.168.244.1 - - [06/Mar/2026 17:14:59] "GET /settings HTTP/1.1" 200 -
-2026-03-06 17:15:04,405 - music_api - INFO - POST /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
-2026-03-06 17:15:04,408 - music_api - INFO - 响应状态: 200
-192.168.244.1 - - [06/Mar/2026 17:15:04] "POST /settings HTTP/1.1" 200 -
-2026-03-06 17:15:32,974 - music_api - INFO - ====== 周期性空间回收任务：依据存活期成功清理了 2 个过期项目 ======
+2026-03-06 17:36:49,015 - music_api - INFO - GET / - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:49,024 - music_api - INFO - 响应状态: 200
+192.168.244.1 - - [06/Mar/2026 17:36:49] "GET / HTTP/1.1" 200 -
+2026-03-06 17:36:49,283 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:49,284 - music_api - INFO - 响应状态: 200
+192.168.244.1 - - [06/Mar/2026 17:36:49] "GET /settings HTTP/1.1" 200 -
+2026-03-06 17:36:58,718 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:36:58,719 - music_api - INFO - 响应状态: 200
+192.168.244.1 - - [06/Mar/2026 17:36:58] "GET /settings HTTP/1.1" 200 -
+2026-03-06 17:37:01,707 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:37:01,707 - music_api - INFO - 响应状态: 200
+192.168.244.1 - - [06/Mar/2026 17:37:01] "GET /settings HTTP/1.1" 200 -
+2026-03-06 17:37:05,537 - music_api - INFO - GET /settings - IP: 192.168.244.1 - User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+2026-03-06 17:37:05,537 - music_api - INFO - 响应状态: 200
+192.168.244.1 - - [06/Mar/2026 17:37:05] "GET /settings HTTP/1.1" 200 -
