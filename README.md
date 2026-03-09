@@ -1,10 +1,6 @@
 # 网易云音乐无损解析
 
-<<<<<<< HEAD
-<div align="center">
-![GitHub license](https://img.shields.io/https://github.com/xiumuzidiao0/Netease_url_for_nas?style=flat-square)
-=======
->>>>>>> e94bd7322afcc53b92221bc6285a694fe73172a4
+
 
 **功能强大的网易云音乐解析工具**
 
