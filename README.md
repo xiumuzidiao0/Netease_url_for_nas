@@ -1,7 +1,10 @@
 # 网易云音乐无损解析
 
+<<<<<<< HEAD
 <div align="center">
 ![GitHub license](https://img.shields.io/https://github.com/xiumuzidiao0/Netease_url_for_nas?style=flat-square)
+=======
+>>>>>>> e94bd7322afcc53b92221bc6285a694fe73172a4
 
 **功能强大的网易云音乐解析工具**
 
@@ -89,7 +92,25 @@ docker-compose up -d
 
 # 或使用Docker
 docker build -t netease_url_for_nas .
-docker run -d -p 5000:5000 netease_url_for_nas
+docker compose配置
+services:
+  netease-url-for-nas:
+    image: netease_url_for_nas:2.0
+    container_name: netease-music-for-nas
+    environment:
+      - AUTOREMOVE=true
+      - AUTO_DELETE_TIME=60
+      - WEBDL=true
+    volumes:
+      - /opt/netease/cookie.txt:/app/cookie.txt:ro
+      - /opt/netease/downloads:/app/downloads
+      - /opt/netease/temp:/app/temp
+    ports:
+      - "5040:5000"
+    restart: unless-stopped
+    command: >
+      sh -c "mkdir -p /opt/netease && touch /opt/netease/cookie.txt && python main.py"
+
 ```
 
 ---
@@ -298,6 +319,7 @@ Content-Type: application/json
 
 
 欢迎 Star、Fork 和 PR！
+
 
 
 
